@@ -158,7 +158,7 @@ Full plan: [`docs/assets/physical-plan.txt`](docs/assets/physical-plan.txt)
 
 | Feedback | Implementation |
 |----------|----------------|
-| Avoid `wholeFile` / `multiLine` | Removed — default CSV split for parallelism |
+| `multiLine` vs `wholeFile` | Keep **`multiLine=True`** (quoted tweet texts contain `\n`; sample: 276/500). Drop **`wholeFile`** (one task per file → kills parallelism) |
 | Avoid repeated `.count()` | `FACT_TOTAL` / `ENRICHED_TOTAL` computed once; helpers take `total` |
 | Cache reused frames | `enriched_tweets.persist()` then `unpersist()` |
 | Broadcast size | Slim column projection before `broadcast()` |

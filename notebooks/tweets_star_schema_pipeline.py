@@ -131,7 +131,7 @@ spark.sql(f"CREATE SCHEMA IF NOT EXISTS {TARGET_SCHEMA}")
 # MAGIC ## 1. Ingest Raw Tweets
 # MAGIC
 # MAGIC - Explicit `StructType` (no `inferSchema`)
-# MAGIC - No `wholeFile` / `multiLine` (max parallelism)
+# MAGIC - `multiLine=True` (tweet `text` often contains embedded newlines); **no** `wholeFile`
 # MAGIC - Normalize `username` (lower + trim); dedupe on `tweet_id`
 # MAGIC - Coalesce legacy column names; ignore misaligned `extractedts`
 
@@ -139,10 +139,13 @@ spark.sql(f"CREATE SCHEMA IF NOT EXISTS {TARGET_SCHEMA}")
 
 def load_tweets(path):
     """Read Ukraine tweet CSVs with an explicit schema and normalize keys."""
+    # multiLine: required — ~half of tweet texts embed real newlines inside quoted fields.
+    # wholeFile: NOT used — it collapses each file onto one task and kills parallelism.
     raw = (
         spark.read
         .option("header", True)
         .option("mode", "PERMISSIVE")
+        .option("multiLine", True)
         .option("escape", '"')
         .schema(RAW_CSV_SCHEMA)
         .csv(path)
