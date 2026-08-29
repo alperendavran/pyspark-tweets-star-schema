@@ -6,8 +6,6 @@ A Databricks analytics pipeline that turns **38 million** Ukraine-war tweet CSVs
 [![Databricks](https://img.shields.io/badge/Databricks-Delta%20Lake-red)](https://www.databricks.com/)
 [![Python](https://img.shields.io/badge/Python-3.12-blue)](https://www.python.org/)
 
-![Pipeline architecture](docs/assets/architecture.svg)
-
 ![Run results](docs/assets/run-results.png)
 
 ---
@@ -21,18 +19,16 @@ Practice production-style PySpark on Databricks: a full small **star schema**, n
 3. **Platform KPIs** — slim explicit `broadcast()` so the physical plan shows `BroadcastHashJoin`  
 4. **Content analytics** — language amplification, hashtag trends, engagement mix  
 
-Source: Ukraine tweet corpus on the DataExpert workspace (`/Volumes/tabular/dataexpert/tweets`).
-
 ---
 
-## Runtime used for the full run
+## Runtime (full run)
 
 | Item | Value |
 |------|------:|
-| Databricks Runtime | **19.x-scala2.13** (Spark **4.2.0** on cluster) |
-| Cluster | DataExpert All purpose — driver/worker **m4.xlarge**, autoscaling **1–2** workers |
-| `tweets_fact` size | **~3.77 GiB** (4,050,537,366 bytes), 314 files, partitioned by `tweet_date` |
-| `tweets_user_dim` size | **~52.7 MiB** (55,296,716 bytes), 1 file — **feasible to broadcast** after column pruning |
+| Databricks Runtime | **19.x-scala2.13** (Spark **4.2.0**) |
+| Cluster | m4.xlarge driver/workers, autoscaling **1–2** |
+| `tweets_fact` size | **~3.77 GiB**, 314 files, partitioned by `tweet_date` |
+| `tweets_user_dim` size | **~52.7 MiB**, 1 file — feasible to broadcast after column pruning |
 
 ---
 
@@ -68,7 +64,7 @@ Source: Ukraine tweet corpus on the DataExpert workspace (`/Volumes/tabular/data
 
 Tweet *volume* and follower *reach* diverge: the top 10 posters by count are prolific small/mid accounts, not the largest influencers.
 
-`is_top_10_tweeter` uses **`row_number`** (tie-break: followers, username) so the set is **exactly 10 users**, not “dense_rank ≤ 10” which can exceed 10 on ties.
+`is_top_10_tweeter` uses **`row_number`** (tie-break: followers, username) so the set is **exactly 10 users**.
 
 ### Engagement mix
 
@@ -118,7 +114,7 @@ Tweet *volume* and follower *reach* diverge: the top 10 posters by count are pro
 
 ```mermaid
 flowchart LR
-  CSV["UC Volume / sample CSV"] --> INGEST["load_tweets()\nexplicit schema, dedupe"]
+  CSV["Tweet CSVs"] --> INGEST["load_tweets()\nexplicit schema, dedupe"]
   INGEST --> FACT["tweets_fact\npartition tweet_date\nOPTIMIZE ZORDER"]
   FACT --> DIM["tweets_user_dim\nrow_number"]
   FACT --> JOIN["broadcast(slim dim)"]
@@ -133,7 +129,7 @@ flowchart LR
 
 ### Broadcast join (verified physical plan)
 
-Only **metric columns** are broadcast (`username`, ranks, flags, `followers_count`) — not the full dim payload. Dim size on the full run is **~53 MiB**, well within typical broadcast budgets on this cluster.
+Only metric columns are broadcast (`username`, ranks, flags, `followers_count`). Dim size on the full run is **~53 MiB**.
 
 ```python
 dim_slim = dim_df.select(*DIM_BROADCAST_COLS)
@@ -154,85 +150,27 @@ Full plan: [`docs/assets/physical-plan.txt`](docs/assets/physical-plan.txt)
 
 ---
 
-## Performance & data-quality practices (applied)
+## Performance & data-quality practices
 
-| Feedback | Implementation |
-|----------|----------------|
-| `multiLine` vs `wholeFile` | Keep **`multiLine=True`** (quoted tweet texts contain `\n`; sample: 276/500). Drop **`wholeFile`** (one task per file → kills parallelism) |
-| Avoid repeated `.count()` | `FACT_TOTAL` / `ENRICHED_TOTAL` computed once; helpers take `total` |
-| Cache reused frames | `enriched_tweets.persist()` then `unpersist()` |
+| Topic | Implementation |
+|-------|----------------|
+| `multiLine` vs `wholeFile` | **`multiLine=True`** (quoted tweet texts contain `\n`). No **`wholeFile`** |
+| Repeated `.count()` | `FACT_TOTAL` / `ENRICHED_TOTAL` once; helpers take `total` |
+| Cache | `enriched_tweets.persist()` then `unpersist()` |
 | Broadcast size | Slim column projection before `broadcast()` |
-| AQE / auto-broadcast | Default keeps 10 MiB threshold; `FORCE_EXPLICIT_BROADCAST=1` for demo |
-| `ANALYZE` / `OPTIMIZE` | `OPTIMIZE … ZORDER BY (username, tweet_date)` + `ANALYZE TABLE … FOR ALL COLUMNS` |
-| Incremental loads | `WRITE_MODE=merge` → staging + `MERGE` on `tweet_id` |
-| Keys / constraints | Delta `CHECK (tweet_id IS NOT NULL)`, `CHECK (username IS NOT NULL)` + ingest dedupe |
-| Normalize join keys | `lower(trim(username))` on ingest and dim |
-| Explicit schema | `RAW_CSV_SCHEMA` `StructType` (no `inferSchema`) |
-| Exact top-N | `row_number` (not `dense_rank`) |
+| Stats / layout | `OPTIMIZE ZORDER BY (username, tweet_date)` + `ANALYZE TABLE` |
+| Incremental | `WRITE_MODE=merge` → staging + `MERGE` on `tweet_id` |
+| Keys | Delta CHECK on `tweet_id` / `username` + ingest dedupe |
+| Join keys | `lower(trim(username))` |
+| Schema | Explicit `StructType` (no `inferSchema`) |
+| Top-N | `row_number` (exact N) |
 | Hashtags | `from_json` after quote normalization |
-| Robust stats | `percentile_approx` median + p95 for retweets/favorites |
-| Monthly queries | Materialized `tweets_monthly_summary` |
+| Robust stats | `percentile_approx` median + p95 |
+| Monthly KPIs | Materialized `tweets_monthly_summary` |
 
 ---
 
-## Auth & config
-
-Placeholders in env defaults are intentional. Auth options:
-
-1. **CLI profile (preferred):** `databricks auth login --profile dataexpert`
-2. **PAT:** export `DATABRICKS_TOKEN=dapi...` (never commit tokens)
-
-```bash
-export DATABRICKS_HOST="https://dbc-7b106152-caf3.cloud.databricks.com"
-export DATABRICKS_CLUSTER_ID="0208-074755-vt50q0b6"
-export DATABRICKS_PROFILE="dataexpert"
-# export DATABRICKS_TOKEN="dapi..."   # only if not using profile OAuth
-export TARGET_SCHEMA="bootcamp_students.alperendavran"
-export TWEETS_PATH="/Volumes/tabular/dataexpert/tweets/*.csv"
-export WRITE_MODE="overwrite"          # or merge
-export FORCE_EXPLICIT_BROADCAST="0"
-```
-
-Job template: [`jobs/tweets_star_schema_job.yml`](jobs/tweets_star_schema_job.yml)
-
----
-
-## Offline / grader path (no Unity Catalog access)
-
-```
-data/sample_raw_tweets_500.csv   # raw CSV shape for ingest tests
-data/sample_tweets_10k.csv       # 10k fact-shaped rows from the live run
-tests/test_pipeline_helpers.py   # local Spark unit tests
-```
-
-```bash
-python -m venv .venv && source .venv/bin/activate
-pip install -r requirements.txt
-pytest -q
-```
-
-### DESCRIBE DETAIL (live run)
-
-```
-tweets_fact      sizeInBytes=4050537366  numFiles=314  partitionColumns=[tweet_date]
-tweets_user_dim  sizeInBytes=55296716    numFiles=1    partitionColumns=[]
-```
-
-Re-run on the cluster:
-
-```sql
-DESCRIBE EXTENDED bootcamp_students.alperendavran.tweets_fact;
-DESCRIBE EXTENDED bootcamp_students.alperendavran.tweets_user_dim;
-DESCRIBE DETAIL  bootcamp_students.alperendavran.tweets_fact;
-DESCRIBE DETAIL  bootcamp_students.alperendavran.tweets_user_dim;
-OPTIMIZE bootcamp_students.alperendavran.tweets_fact ZORDER BY (username, tweet_date);
-ANALYZE TABLE bootcamp_students.alperendavran.tweets_fact COMPUTE STATISTICS FOR ALL COLUMNS;
-ANALYZE TABLE bootcamp_students.alperendavran.tweets_user_dim COMPUTE STATISTICS FOR ALL COLUMNS;
-```
-
----
-
-## Layout
+## Repo layout
 
 ```
 pyspark-tweets-star-schema/
@@ -245,10 +183,14 @@ pyspark-tweets-star-schema/
 │   └── sample_tweets_10k.csv
 ├── tests/test_pipeline_helpers.py
 └── docs/assets/
-    ├── architecture.svg
     ├── broadcast-hash-join.png
     ├── run-results.png
     └── physical-plan.txt
+```
+
+```bash
+pip install -r requirements.txt
+pytest -q
 ```
 
 ---
