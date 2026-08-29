@@ -1,2 +1,4 @@
-databricks-connect>=15.0
-pyspark>=3.5.0
+databricks-connect==15.4.5
+pyspark==3.5.5
+pytest==8.3.5
+pandas==2.2.3
