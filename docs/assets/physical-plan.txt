@@ -1,0 +1,69 @@
+== Physical Plan ==
+AdaptiveSparkPlan (10)
++- == Initial Plan ==
+   Project (9)
+   +- BroadcastHashJoin LeftOuter BuildRight (8)
+      :- Project (3)
+      :  +- Filter (2)
+      :     +- Scan parquet bootcamp_students.alperendavran.tweets_fact (1)
+      +- Exchange (7)
+         +- Project (6)
+            +- Filter (5)
+               +- Scan parquet bootcamp_students.alperendavran.tweets_user_dim (4)
+
+
+(1) Scan parquet bootcamp_students.alperendavran.tweets_fact
+Output [18]: [tweet_id#911L, username#912, text#913, followers_count#914L, retweet_count#915L, favorite_count#916L, language#917, hashtags#918, is_retweet#919, is_quote_status#920, in_reply_to_status_id#921L, in_reply_to_screen_name#922, tweet_ts#923, tweet_year_month#925, is_reply#926, is_original#927, _databricks_internal_edge_computed_column_skip_row#963, tweet_date#924]
+Batched: true
+Location: PreparedDeltaFileIndex [s3://zachwilsonsorganization-522/ce557692-2f28-41e8-8250-8608042d2acb/bootcamp_students_catalog/__unitystorage/catalogs/eb8339f4-2112-4ba8-aec3-46fa595c5f65/tables/731680e7-555c-4268-8b48-f58dfbbb640f]
+ReadSchema: struct<tweet_id:bigint,username:string,text:string,followers_count:bigint,retweet_count:bigint,favorite_count:bigint,language:string,hashtags:string,is_retweet:boolean,is_quote_status:boolean,in_reply_to_status_id:bigint,in_reply_to_screen_name:string,tweet_ts:timestamp,tweet_year_month:string,is_reply:boolean,is_original:boolean,_databricks_internal_edge_computed_column_skip_row:boolean>
+
+(2) Filter
+Input [18]: [tweet_id#911L, username#912, text#913, followers_count#914L, retweet_count#915L, favorite_count#916L, language#917, hashtags#918, is_retweet#919, is_quote_status#920, in_reply_to_status_id#921L, in_reply_to_screen_name#922, tweet_ts#923, tweet_year_month#925, is_reply#926, is_original#927, _databricks_internal_edge_computed_column_skip_row#963, tweet_date#924]
+Condition : if (isnotnull(_databricks_internal_edge_computed_column_skip_row#963)) (_databricks_internal_edge_computed_column_skip_row#963 = false) else isnotnull(raise_error(DELTA_SKIP_ROW_COLUMN_NOT_FILLED, map(keys: [], values: []), NullType))
+
+(3) Project
+Output [17]: [tweet_id#911L, username#912, text#913, followers_count#914L, retweet_count#915L, favorite_count#916L, language#917, hashtags#918, is_retweet#919, is_quote_status#920, in_reply_to_status_id#921L, in_reply_to_screen_name#922, tweet_ts#923, tweet_date#924, tweet_year_month#925, is_reply#926, is_original#927]
+Input [18]: [tweet_id#911L, username#912, text#913, followers_count#914L, retweet_count#915L, favorite_count#916L, language#917, hashtags#918, is_retweet#919, is_quote_status#920, in_reply_to_status_id#921L, in_reply_to_screen_name#922, tweet_ts#923, tweet_year_month#925, is_reply#926, is_original#927, _databricks_internal_edge_computed_column_skip_row#963, tweet_date#924]
+
+(4) Scan parquet bootcamp_students.alperendavran.tweets_user_dim
+Output [13]: [username#928, tweet_count#929L, followers_count#930L, total_retweets#931L, total_favorites#932L, first_tweet_date#933, last_tweet_date#934, volume_rank#935, is_top_10_tweeter#936, is_top_100_tweeter#937, is_big_account#938, volume_tier#939, _databricks_internal_edge_computed_column_skip_row#964]
+Batched: true
+Location: PreparedDeltaFileIndex [s3://zachwilsonsorganization-522/ce557692-2f28-41e8-8250-8608042d2acb/bootcamp_students_catalog/__unitystorage/catalogs/eb8339f4-2112-4ba8-aec3-46fa595c5f65/tables/ac7bc6b7-26fe-4be8-8496-f4913bb78feb]
+PushedFilters: [IsNotNull(username)]
+ReadSchema: struct<username:string,tweet_count:bigint,followers_count:bigint,total_retweets:bigint,total_favorites:bigint,first_tweet_date:date,last_tweet_date:date,volume_rank:int,is_top_10_tweeter:boolean,is_top_100_tweeter:boolean,is_big_account:boolean,volume_tier:string,_databricks_internal_edge_computed_column_skip_row:boolean>
+
+(5) Filter
+Input [13]: [username#928, tweet_count#929L, followers_count#930L, total_retweets#931L, total_favorites#932L, first_tweet_date#933, last_tweet_date#934, volume_rank#935, is_top_10_tweeter#936, is_top_100_tweeter#937, is_big_account#938, volume_tier#939, _databricks_internal_edge_computed_column_skip_row#964]
+Condition : (if (isnotnull(_databricks_internal_edge_computed_column_skip_row#964)) (_databricks_internal_edge_computed_column_skip_row#964 = false) else isnotnull(raise_error(DELTA_SKIP_ROW_COLUMN_NOT_FILLED, map(keys: [], values: []), NullType)) AND isnotnull(username#928))
+
+(6) Project
+Output [12]: [username#928, tweet_count#929L, followers_count#930L, total_retweets#931L, total_favorites#932L, first_tweet_date#933, last_tweet_date#934, volume_rank#935, is_top_10_tweeter#936, is_top_100_tweeter#937, is_big_account#938, volume_tier#939]
+Input [13]: [username#928, tweet_count#929L, followers_count#930L, total_retweets#931L, total_favorites#932L, first_tweet_date#933, last_tweet_date#934, volume_rank#935, is_top_10_tweeter#936, is_top_100_tweeter#937, is_big_account#938, volume_tier#939, _databricks_internal_edge_computed_column_skip_row#964]
+
+(7) Exchange
+Input [12]: [username#928, tweet_count#929L, followers_count#930L, total_retweets#931L, total_favorites#932L, first_tweet_date#933, last_tweet_date#934, volume_rank#935, is_top_10_tweeter#936, is_top_100_tweeter#937, is_big_account#938, volume_tier#939]
+Arguments: SinglePartition, EXECUTOR_BROADCAST, [plan_id=283]
+
+(8) BroadcastHashJoin
+Left keys [1]: [username#912]
+Right keys [1]: [username#928]
+Join type: LeftOuter
+Join condition: None
+
+(9) Project
+Output [28]: [username#912, tweet_id#911L, text#913, followers_count#914L, retweet_count#915L, favorite_count#916L, language#917, hashtags#918, is_retweet#919, is_quote_status#920, in_reply_to_status_id#921L, in_reply_to_screen_name#922, tweet_ts#923, tweet_date#924, tweet_year_month#925, is_reply#926, is_original#927, tweet_count#929L, followers_count#930L, total_retweets#931L, total_favorites#932L, first_tweet_date#933, last_tweet_date#934, volume_rank#935, is_top_10_tweeter#936, is_top_100_tweeter#937, is_big_account#938, volume_tier#939]
+Input [29]: [tweet_id#911L, username#912, text#913, followers_count#914L, retweet_count#915L, favorite_count#916L, language#917, hashtags#918, is_retweet#919, is_quote_status#920, in_reply_to_status_id#921L, in_reply_to_screen_name#922, tweet_ts#923, tweet_date#924, tweet_year_month#925, is_reply#926, is_original#927, username#928, tweet_count#929L, followers_count#930L, total_retweets#931L, total_favorites#932L, first_tweet_date#933, last_tweet_date#934, volume_rank#935, is_top_10_tweeter#936, is_top_100_tweeter#937, is_big_account#938, volume_tier#939]
+
+(10) AdaptiveSparkPlan
+Output [28]: [username#912, tweet_id#911L, text#913, followers_count#914L, retweet_count#915L, favorite_count#916L, language#917, hashtags#918, is_retweet#919, is_quote_status#920, in_reply_to_status_id#921L, in_reply_to_screen_name#922, tweet_ts#923, tweet_date#924, tweet_year_month#925, is_reply#926, is_original#927, tweet_count#929L, followers_count#930L, total_retweets#931L, total_favorites#932L, first_tweet_date#933, last_tweet_date#934, volume_rank#935, is_top_10_tweeter#936, is_top_100_tweeter#937, is_big_account#938, volume_tier#939]
+Arguments: isFinalPlan=false
+
+
+== Optimizer Statistics (table names per statistics state) ==
+  missing = tweets_fact, tweets_user_dim
+  partial = 
+  full    = 
+Corrective actions: consider running the following command on all tables with missing or partial statistics
+  ANALYZE TABLE <table-name> COMPUTE STATISTICS FOR ALL COLUMNS
+
