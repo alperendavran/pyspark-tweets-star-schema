@@ -1,0 +1,10 @@
+.idea/
+.venv/
+__pycache__/
+*.pyc
+.DS_Store
+.databricks/
+.env
+.env.*
+*.pem
+*.key
